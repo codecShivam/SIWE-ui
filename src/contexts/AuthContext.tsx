@@ -2,13 +2,37 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useAccount, useSignMessage } from 'wagmi';
 import { createSiweMessage } from 'viem/siwe';
 
+interface Profile {
+  name?: string;
+  email?: string;
+  avatar?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface User {
+  id: string;
+  walletAddress: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface UserData {
+  user: User;
+  profile: Profile | null;
+}
+
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  userData: UserData | null;
   authenticate: () => Promise<void>;
   logout: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
+  fetchUserData: () => Promise<void>;
+  createOrUpdateProfile: (profileData: Partial<Profile>) => Promise<void>;
+  deleteProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +47,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
@@ -33,6 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       checkAuthStatus();
     } else {
       setIsAuthenticated(false);
+      setUserData(null);
     }
   }, [isConnected, address]);
 
@@ -89,6 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (result.success) {
         setIsAuthenticated(true);
+        await fetchUserData();
       } else {
         throw new Error('Authentication verification failed');
       }
@@ -110,6 +137,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       
       setIsAuthenticated(false);
+      setUserData(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Logout failed');
     } finally {
@@ -126,12 +154,84 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (statusResponse.ok) {
         const { authenticated } = await statusResponse.json();
         setIsAuthenticated(authenticated);
+        if (authenticated) {
+          await fetchUserData();
+        }
       } else {
         setIsAuthenticated(false);
+        setUserData(null);
       }
     } catch (err) {
       console.error('Failed to check auth status:', err);
       setIsAuthenticated(false);
+      setUserData(null);
+    }
+  };
+
+  const fetchUserData = async (): Promise<void> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/a/profile`, {
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserData(data);
+      } else {
+        console.error('Failed to fetch user data');
+        setUserData(null);
+      }
+    } catch (err) {
+      console.error('Error fetching user data:', err);
+      setUserData(null);
+    }
+  };
+
+  const createOrUpdateProfile = async (profileData: Partial<Profile>): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/a/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(profileData),
+      });
+
+      if (response.ok) {
+        await fetchUserData(); // Refresh user data
+      } else {
+        throw new Error('Failed to update profile');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Profile update failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteProfile = async (): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/a/profile`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        await fetchUserData(); // Refresh user data
+      } else {
+        throw new Error('Failed to delete profile');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Profile deletion failed');
+      throw err;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -139,9 +239,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     isLoading,
     error,
+    userData,
     authenticate,
     logout,
     checkAuthStatus,
+    fetchUserData,
+    createOrUpdateProfile,
+    deleteProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
