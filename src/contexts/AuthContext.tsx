@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { createSiweMessage } from 'viem/siwe';
 
@@ -37,7 +38,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'https://siwe-siwe-auth.pkf1mn.easypanel.host/api';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -90,9 +91,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const message = createSiweMessage({
         address: address as `0x${string}`,
         chainId: 1, // mainnet
-        domain: 'localhost:8080',
+        domain: 'siwe-siwe-auth.pkf1mn.easypanel.host',
         nonce: nonce,
-        uri: 'http://localhost:8080',
+        uri: 'https://siwe-siwe-auth.pkf1mn.easypanel.host',
         version: '1',
       });
 
